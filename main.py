@@ -4,12 +4,13 @@ from openai import AsyncOpenAI
 import os
 import chainlit as cl
 from datetime import datetime
+from Agents.Format_Agents import format_agent
 
 # --- Load environment variables ---
 load_dotenv()
 
-with open("Instructions/format_agent.md", "r") as file:
-    format_agent_instructions = file.read()
+with open("Instructions/manager_agent.md", "r") as file:
+    mangager_agent_instructions = file.read()
 
 # --- Gemini API Keys ---
 GEMINI_KEYS = [
@@ -39,38 +40,58 @@ config = RunConfig(
     model_provider=external_client
 )
 
-format_agent = Agent(
-    name="Format Agent",
-    instructions=format_agent_instructions,
+# --- Define contextual info for handoffs ---
+RESTAURANT_NAME = "McDonald's – Northwalk"
+OC_NAME = "Asif Afridi"
+RM_NAME = "Khurram Baig"
+
+manager_agent = Agent(
+    name="Manager Agent",
+    instructions=mangager_agent_instructions,
+    handoffs=[format_agent],
     model=model,
 )
 
 # --- Chat start ---
 @cl.on_chat_start
 async def start():
-    await cl.Message(content="👋 Hi! The Format Agent is ready. Kindly give me a subject.").send()
+    await cl.Message(content="""
+                     👋 Hi! The Manager Agent is ready.
+                        To Generate a Format SMS, please provide the subject with SUBJECT Keyword.
+                        For example: SUBJECT: Meeting Reminder
+                     """).send()
 
 
 # --- Handle user messages ---
 @cl.on_message
 async def main(message: cl.Message):
-    subject = message.content.strip()
+    user_input = message.content.strip()
+    today = datetime.now().strftime("%d-%b-%Y")
 
-    # Get today's date in DD-MMM-YY format
-    today = datetime.now().strftime("%d-%b-%y")
-
-    # Build the user prompt with date + subject
-    user_prompt = f"""
+    # Detect SUBJECT-based message (handoff trigger)
+    if user_input.startswith("SUBJECT:"):
+        # Add contextual info before handoff
+        enriched_input = f"""
 Date: {today}
-Subject: {subject}
+Restaurant: {RESTAURANT_NAME}
+OC: {OC_NAME}
+RM: {RM_NAME}
+
+{user_input}
 """
+        # Run with enriched info (handoff to Format Agent)
+        response = await Runner.run(
+            starting_agent=manager_agent,
+            run_config=config,
+            input=enriched_input
+        )
+    else:
+        # Normal message handled directly by Manager Agent
+        response = await Runner.run(
+            starting_agent=manager_agent,
+            run_config=config,
+            input=user_input
+        )
 
-    # Run the agent asynchronously
-    response = await Runner.run(
-        starting_agent=format_agent,
-        run_config=config,
-        input=user_prompt
-    )
-
-    # Display formatted SMS to user
+    # Send back the final response
     await cl.Message(content=response.final_output).send()
