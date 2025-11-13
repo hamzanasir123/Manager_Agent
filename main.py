@@ -41,9 +41,9 @@ config = RunConfig(
 )
 
 # --- Define contextual info for handoffs ---
-RESTAURANT_NAME = "McDonald's – Northwalk"
-OC_NAME = "Asif Afridi"
-RM_NAME = "Khurram Baig"
+RESTAURANT_NAME = "McDonald's – Corniche"
+OC_NAME = "Shujaat Hussain"
+RM_NAME = "Usama Mateen"
 
 manager_agent = Agent(
     name="Manager Agent",
